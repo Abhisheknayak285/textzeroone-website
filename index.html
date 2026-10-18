@@ -588,19 +588,26 @@
         <div class="px-6 pt-4 pb-3 flex justify-between items-center shrink-0"><h3 class="text-[18px] font-bold text-app-text tracking-tight">Branch Details</h3>
             <button onclick="closeModal('modal-am-branch-details')" class="w-8 h-8 bg-app-overlay rounded-full flex items-center justify-center text-app-textMuted btn-active"><i class="ph-bold ph-x text-[15px]"></i></button></div>
         <div class="flex-1 overflow-y-auto px-5 py-4 space-y-5" id="modal-am-branch-content"></div>
-        <div class="px-5 pt-3 shrink-0"><button id="btn-branch-export" class="w-full card text-app-text font-semibold text-[15.5px] h-[50px] btn-active flex items-center justify-center gap-2"><i class="ph-bold ph-download-simple text-app-gold"></i> <span>Export Reports (PDF)</span></button></div></div></div>
+        <div class="px-5 pt-3 pb-1 shrink-0"><button id="btn-branch-export" class="w-full card text-app-text font-semibold text-[15.5px] h-[50px] btn-active flex items-center justify-center gap-2"><i class="ph-bold ph-download-simple text-app-gold"></i> <span>Export Reports (PDF)</span></button></div>
+        <div class="px-5 pt-2 pb-3 shrink-0"><button id="btn-branch-missed" class="w-full card text-app-error font-semibold text-[15.5px] h-[50px] btn-active flex items-center justify-center gap-2 !border-app-error/25"><i class="ph-bold ph-clock-counter-clockwise text-app-error"></i> <span>File a Missed Report</span></button></div></div></div>
 
     <!-- AM: report form -->
     <div id="modal-am-report" class="sheet-overlay"><div class="sheet-content h-[95vh] flex flex-col max-w-2xl mx-auto w-full">
         <div class="px-6 pt-4 pb-3 flex justify-between items-center shrink-0"><div><h3 class="text-[18px] font-bold text-app-text tracking-tight">Submit Report</h3><p class="text-[12px] text-app-gold font-semibold" id="am-report-branch-name">Branch Name</p></div>
             <button onclick="closeModal('modal-am-report')" class="w-8 h-8 bg-app-overlay rounded-full flex items-center justify-center text-app-textMuted btn-active"><i class="ph-bold ph-x text-[15px]"></i></button></div>
         <div class="flex-1 overflow-y-auto px-5 py-3 space-y-4">
+            <div id="am-report-missed-banner" class="hidden bg-app-errorBg border border-app-error/20 rounded-2xl p-3.5 flex items-start gap-3">
+                <i class="ph-fill ph-clock-counter-clockwise text-app-error text-[20px] mt-0.5 shrink-0"></i>
+                <p class="text-[12px] text-app-error leading-relaxed">You are filing a <b>missed report</b> for a past date, on behalf of the shop manager. Please confirm the numbers with them by phone first.</p>
+            </div>
             <div class="card p-4 space-y-3">
-                <div class="input-group !bg-app-surface2"><label class="input-label">Report Date</label><input type="text" class="native-input" value="Today" readonly></div>
+                <div id="am-report-date-row" class="input-group !bg-app-surface2"><label class="input-label">Report Date</label><input type="text" id="am-report-date-display" class="native-input" value="Today" readonly></div>
+                <div id="am-report-date-picker-row" class="input-group !bg-app-surface2 hidden"><label class="input-label">Report Date (select the missed day)</label><input type="date" id="am-report-date-input" class="native-input"></div>
                 <div class="input-group !bg-app-surface2"><label class="input-label">Total Customers</label><input type="number" min="0" id="am-rep-cust" class="native-input" placeholder="Enter count" inputmode="numeric"></div>
             </div>
             <div><div class="flex items-center gap-2 mb-2 px-1"><i class="ph-fill ph-wallet text-app-gold text-[16px]"></i><h3 class="text-[13px] font-semibold text-app-textMuted uppercase tracking-wider">Gross Collections</h3></div><div class="space-y-3" id="am-amount-rows"></div></div>
             <div><div class="flex items-center gap-2 mb-2 px-1"><i class="ph-fill ph-hand-coins text-app-error text-[16px]"></i><h3 class="text-[13px] font-semibold text-app-textMuted uppercase tracking-wider">Cash Taken</h3></div><div id="am-advance-block"></div></div>
+            <div id="am-report-reason-row" class="hidden input-group"><label class="input-label">Reason for Late Filing (required)</label><input type="text" id="am-report-late-reason" maxlength="150" class="native-input" placeholder="e.g. Manager forgot, confirmed on call"></div>
         </div>
         <div class="px-5 pt-3 shrink-0">
             <div class="flex justify-between items-end mb-3"><span class="text-[11px] text-app-textMuted uppercase font-semibold tracking-wider">Gross Total</span><span class="text-[26px] font-bold text-app-gold leading-none" id="am-report-gross-total">₹0</span></div>
@@ -1251,6 +1258,7 @@ window.openBranchAsAM = function (branchId) {
                 ${row('ph-phone', 'text-app-textMuted', 'Contact Number', esc(phone || 'Not provided'), phone ? `<a href="tel:${esc(phone.replace(/[^0-9+]/g, ''))}" class="w-10 h-10 rounded-full bg-app-successBg flex items-center justify-center text-app-success shrink-0"><i class="ph-fill ph-phone-call text-[19px]"></i></a>` : '')}
             </div></div>`;
     $('btn-branch-export').onclick = () => { closeModal('modal-am-branch-details'); openExport(b.id); };
+    $('btn-branch-missed').onclick = () => { closeModal('modal-am-branch-details'); openAMMissedReportForm(b.id); };
     openModal('modal-am-branch-details');
 };
 
@@ -1281,20 +1289,21 @@ function validateReport(d) {
     if (d.adv > d.cash + d.upi + d.card) return 'Cash taken cannot be more than the gross collection.';
     return null;
 }
-async function saveReport(branch, d, byRole) {
-    const date = istToday();
-    if (todayReportOf(branch.id)) throw new Error('Today\'s report for this branch is already submitted.');
+async function saveReport(branch, d, byRole, date = istToday(), late = null) {
+    const isToday = date === istToday();
+    if (isToday && todayReportOf(branch.id)) throw new Error('Today\'s report for this branch is already submitted.');
     const repId = `${branch.id}_${date}`;
     const ref = doc(db, 'reports', repId);
     await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
-        if (snap.exists()) throw new Error('Today\'s report for this branch is already submitted.');
+        if (snap.exists()) throw new Error('A report for this branch on this date is already submitted.');
         tx.set(ref, {
             id: repId, branchId: branch.id, date,
             timestamp: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }), ts: Date.now(),
             cust: d.cust, cash: d.cash, upi: d.upi, card: d.card, gross: d.cash + d.upi + d.card,
             exp: d.adv, notes: d.note, status: 'submitted',
-            submittedByRole: byRole, submittedById: S.mgr.id, submittedByName: S.mgr.name || ''
+            submittedByRole: byRole, submittedById: S.mgr.id, submittedByName: S.mgr.name || '',
+            ...(late ? { late: true, lateReason: late } : {})
         });
     });
 }
@@ -1333,14 +1342,34 @@ window.submitData = async function () {
 };
 
 /* Area manager flow */
+function resetAMReportForm() {
+    clearInputs(['am-rep-cust', 'am-val-cash', 'am-val-upi', 'am-val-card', 'am-val-advance', 'am-val-advance-note']);
+    $('am-report-gross-total').innerText = '₹0';
+}
 window.openAMReportForm = function (branchId) {
     const b = S.branches.find(x => x.id === branchId); if (!b) return;
     if (todayReportOf(b.id)) return showAlert('Already Submitted', 'This branch has already submitted today.');
     closeModal('modal-am-branch-details'); closeModal('modal-am-select-branch-report');
-    S.amReportBranchId = branchId;
+    S.amReportBranchId = branchId; S.amReportMissed = false; S.amReportDate = istToday();
     $('am-report-branch-name').innerText = `${b.brand} - ${b.name}`;
-    clearInputs(['am-rep-cust', 'am-val-cash', 'am-val-upi', 'am-val-card', 'am-val-advance', 'am-val-advance-note']);
-    $('am-report-gross-total').innerText = '₹0';
+    $('am-report-missed-banner').classList.add('hidden');
+    $('am-report-date-row').classList.remove('hidden'); $('am-report-date-display').value = 'Today';
+    $('am-report-date-picker-row').classList.add('hidden');
+    $('am-report-reason-row').classList.add('hidden'); $('am-report-late-reason').value = '';
+    resetAMReportForm();
+    openModal('modal-am-report');
+};
+window.openAMMissedReportForm = function (branchId) {
+    const b = S.branches.find(x => x.id === branchId); if (!b) return;
+    closeModal('modal-am-branch-details');
+    S.amReportBranchId = branchId; S.amReportMissed = true; S.amReportDate = null;
+    $('am-report-branch-name').innerText = `${b.brand} - ${b.name}`;
+    $('am-report-missed-banner').classList.remove('hidden');
+    $('am-report-date-row').classList.add('hidden');
+    $('am-report-date-picker-row').classList.remove('hidden');
+    $('am-report-date-input').max = addDays(istToday(), -1); $('am-report-date-input').min = addDays(istToday(), -30); $('am-report-date-input').value = addDays(istToday(), -1);
+    $('am-report-reason-row').classList.remove('hidden'); $('am-report-late-reason').value = '';
+    resetAMReportForm();
     openModal('modal-am-report');
 };
 window.calculateAMReportTotal = () => { $('am-report-gross-total').innerText = '₹' + fmt(getVal('am-val-cash') + getVal('am-val-upi') + getVal('am-val-card')); };
@@ -1349,11 +1378,35 @@ window.submitAMReport = async function () {
     const b = S.branches.find(x => x.id === S.amReportBranchId); if (!b) return showAlert('Error', 'Branch not found.');
     const d = { cust: getVal('am-rep-cust'), cash: getVal('am-val-cash'), upi: getVal('am-val-upi'), card: getVal('am-val-card'), adv: getVal('am-val-advance'), note: $('am-val-advance-note').value.trim() };
     const err = validateReport(d); if (err) return showAlert('Check Details', err);
+
+    let date = istToday(), lateReason = null;
+    if (S.amReportMissed) {
+        date = $('am-report-date-input').value;
+        const today = istToday();
+        if (!date) return showAlert('Missing Date', 'Please select the date this report is for.');
+        if (date >= today) return showAlert('Invalid Date', 'A missed report must be for a past date, not today or a future date.');
+        lateReason = $('am-report-late-reason').value.trim();
+        if (!lateReason) return showAlert('Reason Required', 'Please add a reason for filing this report late — you should confirm the figures with the shop manager by phone first.');
+    }
+
     S.submitting = true;
     await withLoader(async () => {
-        await saveReport(b, d, 'am');
+        if (S.amReportMissed) {
+            await ensureRange(date, date, [b.id]);
+            if ([...S.reports.values()].some(r => r.branchId === b.id && r.date === date && r.status === 'submitted')) throw new Error('A report for this branch on this date is already submitted.');
+        }
+        await saveReport(b, d, 'am', date, lateReason);
+        if (lateReason) {
+            const repId = `${b.id}_${date}`;
+            S.reports.set(repId, {
+                id: repId, branchId: b.id, date, timestamp: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }), ts: Date.now(),
+                cust: d.cust, cash: d.cash, upi: d.upi, card: d.card, gross: d.cash + d.upi + d.card, exp: d.adv, notes: d.note, status: 'submitted',
+                submittedByRole: 'am', submittedById: S.mgr.id, submittedByName: S.mgr.name || '', late: true, lateReason
+            });
+            S.ver++; render();
+        }
         closeModal('modal-am-report');
-        showAlert('Report Submitted', `Ledger for ${b.name} has been successfully logged.`, true);
+        showAlert('Report Submitted', `Ledger for ${b.name} (${niceDate(date)}) has been successfully logged.${lateReason ? ' Marked as a late filing.' : ''}`, true);
     }, 'Submission failed');
     S.submitting = false;
 };
@@ -1389,7 +1442,7 @@ function renderManager() {
         <div class="card p-4">
             <div class="flex justify-between items-center mb-3">
                 <div class="flex items-center gap-2"><span class="text-[12.5px] font-semibold text-app-text">${esc(niceDate(r.date))}</span><span class="text-[10px] bg-app-overlay px-2 py-0.5 rounded-full text-app-textMuted uppercase">${esc(r.timestamp)}</span></div>
-                <span class="pill bg-app-successBg text-app-success"><i class="ph-fill ph-check-circle"></i> Logged</span>
+                <span class="pill ${r.late ? 'bg-app-warningBg text-app-warning' : 'bg-app-successBg text-app-success'}"><i class="ph-fill ${r.late ? 'ph-clock-counter-clockwise' : 'ph-check-circle'}"></i> ${r.late ? 'Late' : 'Logged'}</span>
             </div>
             <div class="flex justify-between items-end">
                 <div><p class="text-[11px] font-medium text-app-textMuted mb-1">Gross Collection</p><p class="text-[20px] font-bold text-app-gold leading-none">₹${fmt(r.gross)}</p></div>
@@ -1398,6 +1451,7 @@ function renderManager() {
                     <div class="text-right"><p class="text-[11px] font-medium text-app-textMuted mb-1">Cust</p><p class="text-[15px] font-bold text-app-text leading-none">${esc(r.cust)}</p></div>
                 </div>
             </div>
+            ${r.late ? `<div class="mt-3 bg-app-warningBg px-3 py-2.5 rounded-xl flex items-start gap-2"><i class="ph-fill ph-info text-app-warning mt-0.5 text-[16px]"></i><div><span class="block text-[10px] text-app-textMuted uppercase font-semibold tracking-wider mb-0.5">Filed late by Area Manager</span><span class="text-[13px] text-app-text font-medium leading-tight block">${esc(r.lateReason || '')}</span></div></div>` : ''}
             ${r.exp > 0 && r.notes ? `<div class="mt-3 bg-app-errorBg px-3 py-2.5 rounded-xl flex items-start gap-2"><i class="ph-fill ph-chat-centered-text text-app-error mt-0.5 text-[16px]"></i><div><span class="block text-[10px] text-app-textMuted uppercase font-semibold tracking-wider mb-0.5">Note</span><span class="text-[13px] text-app-text font-medium leading-tight block">${esc(r.notes)}</span></div></div>` : ''}
         </div>`).join('')
         : `<div class="py-14 flex flex-col items-center text-center"><i class="ph-light ph-clock-counter-clockwise text-[44px] text-app-textSubtle mb-2"></i><p class="text-[14px] text-app-textMuted">No reports in the last ${Math.round((Date.parse(istToday()) - Date.parse(S.histFrom)) / 864e5) + 1} days.</p></div>`)
@@ -1594,7 +1648,6 @@ function downloadPDF(doc, filename) {
     }
     setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
-
 
 
 
