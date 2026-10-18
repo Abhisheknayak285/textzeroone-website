@@ -35,14 +35,14 @@
             --c-bg:#000; --c-surface:#1C1C1E; --c-surface2:#2C2C2E; --c-border:rgba(255,255,255,.09); --c-text:#fff; --c-text-muted:#A1A1AA; --c-text-subtle:#636366;
             --c-gold:#E0B93C; --c-error:#FF453A; --c-success:#30D158; --c-info:#0A84FF; --c-warning:#FF9F0A;
             --c-success-bg:rgba(48,209,88,.14); --c-error-bg:rgba(255,69,58,.14); --c-info-bg:rgba(10,132,255,.14); --c-warning-bg:rgba(255,159,10,.14); --c-gold-bg:rgba(224,185,60,.14); --c-overlay:rgba(255,255,255,.07);
-            --glass:rgba(28,28,30,.78); --shadow:0 1px 2px rgba(0,0,0,.4);
+            --glass:rgba(28,28,30,.78); --shadow:0 3px 10px rgba(0,0,0,.28),0 1px 2px rgba(0,0,0,.3);
             --bh:0px;
         }
         .light-theme {
             --c-bg:#F2F2F7; --c-surface:#FFFFFF; --c-surface2:#F2F2F7; --c-border:rgba(60,60,67,.14); --c-text:#0B0B0F; --c-text-muted:#5F6368; --c-text-subtle:#9AA0A6;
             --c-gold:#A67C00; --c-error:#E5352B; --c-success:#1E9E4A; --c-info:#007AFF; --c-warning:#C77700;
             --c-success-bg:rgba(30,158,74,.11); --c-error-bg:rgba(229,53,43,.10); --c-info-bg:rgba(0,122,255,.10); --c-warning-bg:rgba(199,119,0,.11); --c-gold-bg:rgba(166,124,0,.11); --c-overlay:rgba(0,0,0,.05);
-            --glass:rgba(255,255,255,.82); --shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
+            --glass:rgba(255,255,255,.82); --shadow:0 4px 14px rgba(16,24,40,.08),0 1px 3px rgba(16,24,40,.06);
         }
         * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; scrollbar-width:none; }
         ::-webkit-scrollbar { display:none; }
@@ -320,18 +320,18 @@
                 <div>
                     <h3 class="text-[13px] font-semibold text-app-textMuted uppercase tracking-wider mb-2 px-1">Daily Report Alerts (Today)</h3>
                     <div class="grid grid-cols-2 gap-3">
-                        <div class="card p-3.5 flex flex-col cursor-pointer btn-active" onclick="goAMTab(1)">
-                            <div class="flex items-center gap-2 mb-1 text-app-textMuted text-[11px] uppercase font-semibold tracking-wider"><i class="ph-fill ph-storefront"></i> Expected</div>
-                            <span class="text-[24px] font-bold text-app-text" id="alert-expected">0</span></div>
-                        <div class="card p-3.5 flex flex-col cursor-pointer btn-active" onclick="goAMTab(1)">
-                            <div class="flex items-center gap-2 mb-1 text-app-success text-[11px] uppercase font-semibold tracking-wider"><i class="ph-fill ph-check-circle"></i> Submitted</div>
-                            <span class="text-[24px] font-bold text-app-success" id="alert-submitted">0</span></div>
-                        <div id="alert-pending-box" class="bg-app-warningBg border border-app-warning/20 rounded-[20px] p-3.5 flex flex-col cursor-pointer transition-colors btn-active" onclick="goAMTab(1)">
-                            <div class="flex items-center gap-2 mb-1 text-app-warning text-[11px] uppercase font-semibold tracking-wider" id="alert-pending-label"><i class="ph-fill ph-clock"></i> Pending (Due 10 AM Tomorrow)</div>
-                            <span class="text-[24px] font-bold text-app-warning" id="alert-pending">0</span></div>
-                        <div id="alert-overdue-box" class="bg-app-errorBg border border-app-error/20 rounded-[20px] p-3.5 flex flex-col cursor-pointer transition-colors btn-active" onclick="goAMTab(1)">
-                            <div class="flex items-center gap-2 mb-1 text-app-error text-[11px] uppercase font-semibold tracking-wider"><i class="ph-fill ph-warning-circle"></i> Overdue (Missed 10 AM)</div>
-                            <span class="text-[24px] font-bold text-app-error" id="alert-overdue">0</span></div>
+                        <div class="card p-4 flex flex-col gap-2.5 cursor-pointer btn-active" onclick="goAMTab(1)">
+                            <div class="w-9 h-9 rounded-full bg-app-surface2 flex items-center justify-center"><i class="ph-fill ph-storefront text-app-textMuted text-[16px]"></i></div>
+                            <div><span class="text-[22px] font-bold text-app-text leading-none" id="alert-expected">0</span><p class="text-[11px] text-app-textMuted font-semibold mt-1">Expected</p></div></div>
+                        <div class="card p-4 flex flex-col gap-2.5 cursor-pointer btn-active" onclick="goAMTab(1)">
+                            <div class="w-9 h-9 rounded-full bg-app-successBg flex items-center justify-center"><i class="ph-fill ph-check-circle text-app-success text-[16px]"></i></div>
+                            <div><span class="text-[22px] font-bold text-app-success leading-none" id="alert-submitted">0</span><p class="text-[11px] text-app-textMuted font-semibold mt-1">Submitted</p></div></div>
+                        <div id="alert-pending-box" class="card !bg-app-warningBg !border-app-warning/20 p-4 flex flex-col gap-2.5 cursor-pointer btn-active" onclick="goAMTab(1)">
+                            <div class="w-9 h-9 rounded-full bg-white/50 flex items-center justify-center"><i class="ph-fill ph-clock text-app-warning text-[16px]"></i></div>
+                            <div><span class="text-[22px] font-bold text-app-warning leading-none" id="alert-pending">0</span><p class="text-[11px] text-app-warning font-semibold mt-1" id="alert-pending-label">Pending · Due 10 AM Tmrw</p></div></div>
+                        <div id="alert-overdue-box" class="card !bg-app-errorBg !border-app-error/20 p-4 flex flex-col gap-2.5 cursor-pointer btn-active" onclick="goAMTab(1)">
+                            <div class="w-9 h-9 rounded-full bg-white/50 flex items-center justify-center"><i class="ph-fill ph-warning-circle text-app-error text-[16px]"></i></div>
+                            <div><span class="text-[22px] font-bold text-app-error leading-none" id="alert-overdue">0</span><p class="text-[11px] text-app-error font-semibold mt-1">Overdue · Missed 10 AM</p></div></div>
                     </div>
                 </div>
 
