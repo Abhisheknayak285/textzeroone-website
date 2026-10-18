@@ -832,6 +832,7 @@ window.completeOnboarding = function () {
     try { localStorage.setItem('z1_manager_onboarded', 'true'); } catch (e) {}
     navTo('screen-login');
 };
+const ADMIN_UID = 'HXaiZ8xPcIgoKEX2RE9Gp9rjsYj2';     // the admin's account — this Google account can never sign in here
 window.executeGoogleLogin = async function () {
     if (busy) return;
     if (!navigator.onLine) return showAlert('No Internet', 'Login needs an internet connection. Please connect and try again.');
@@ -839,11 +840,19 @@ window.executeGoogleLogin = async function () {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     const done = () => { busy = false; btn.classList.remove('loading'); };
-    try { await signInWithPopup(auth, provider); setTimeout(done, 900); }
+    try {
+        const cred = await signInWithPopup(auth, provider);
+        if (cred.user.uid === ADMIN_UID) {
+            await signOut(auth); done();
+            return showAlert('Cannot Sign In', 'This Google account is reserved for the administrator and cannot be used to sign in here.');
+        }
+        setTimeout(done, 900);
+    }
     catch (e) {
         done();
         if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
         if (e.code === 'auth/popup-blocked') { try { await signInWithRedirect(auth, provider); return; } catch (e2) { e = e2; } }
+        if (e.code === 'auth/account-exists-with-different-credential') return showAlert('Cannot Sign In', 'This Google account is reserved for the administrator and cannot be used to sign in here.');
         showAlert('Login Failed', friendlyError(e));
     }
 };
@@ -898,13 +907,11 @@ function showWaiting(kind) {
 
 /* ───────────── AUTH → MANAGER DOC → ROUTING ───────────── */
 function stopData() {
-    clearTimeout(cacheGuard.br);
     if (S.unsubBranches) { S.unsubBranches(); S.unsubBranches = null; }
     S.unsubReports.forEach(u => u()); S.unsubReports.clear();
     S.branches = []; S.reports.clear(); S.loaded.clear(); S.dataKey = ''; S.liveStart = null; S.ver++; S.repCount = null;
 }
 function stopAll() {
-    Object.keys(cacheGuard).forEach(k => clearTimeout(cacheGuard[k]));
     if (S.unsubMgr) { S.unsubMgr(); S.unsubMgr = null; }
     stopData();
 }
@@ -917,6 +924,12 @@ onAuthStateChanged(auth, (user) => {
         hideLoader();
         return;
     }
+    if (user.uid === ADMIN_UID) {                       // caught here too, in case sign-in completed via redirect
+        signOut(auth).catch(() => {});
+        hideLoader();
+        showAlert('Cannot Sign In', 'This Google account is reserved for the administrator and cannot be used to sign in here.');
+        return;
+    }
     const emails = [...new Set([user.email, (user.email || '').toLowerCase()])];
     const q = query(collection(db, 'managers'), where('email', 'in', emails));
     S.unsubMgr = onSnapshot(q, (snap) => handleManagerSnap(snap), (err) => {
@@ -926,18 +939,8 @@ onAuthStateChanged(auth, (user) => {
     });
 });
 
-// An EMPTY result that came only from the phone's cache is not the truth while online: wait for the server's answer
-// (fallback after 6s so the app never hangs).
-const cacheGuard = {};
-function waitForServer(key, snap, fn) {
-    if (!(snap.empty && snap.metadata.fromCache && navigator.onLine)) { clearTimeout(cacheGuard[key]); return false; }
-    clearTimeout(cacheGuard[key]);
-    cacheGuard[key] = setTimeout(() => fn(snap, true), 6000);
-    return true;
-}
-async function handleManagerSnap(snap, forced) {
+async function handleManagerSnap(snap) {
     if (!S.user) return;
-    if (!forced && waitForServer('mgr', snap, handleManagerSnap)) return;
     if (snap.empty) {
         if (snap.metadata.fromCache && !navigator.onLine) return;       // offline + nothing cached yet: do not mistake it for a new user
         stopData(); S.mgr = null;
@@ -973,16 +976,14 @@ async function handleManagerSnap(snap, forced) {
 function startBranchListener() {
     const field = S.role === 'am' ? 'amId' : 'smId';
     const q = query(collection(db, 'branches'), where(field, '==', S.mgr.id), where('status', '==', 'active'));
-    const onBr = (snap, forced) => {
-        if (!forced && waitForServer('br', snap, onBr)) return;
+    S.unsubBranches = onSnapshot(q, (snap) => {
         S.branches = snap.docs.map(x => ({ ...x.data(), id: x.data().id || x.id }));
         if (S.branches.length === 0) { S.reports.clear(); S.ver++; S.unsubReports.forEach(u => u()); S.unsubReports.clear(); return showWaiting('nobranch'); }
         syncReportListeners();
         ensureApp();
         render();
         fetchManagerNames();
-    };
-    S.unsubBranches = onSnapshot(q, (snap) => onBr(snap), (err) => { console.error(err); hideLoader(); showAlert('Connection Error', friendlyError(err)); });
+    }, (err) => { console.error(err); hideLoader(); showAlert('Connection Error', friendlyError(err)); });
 }
 
 /* ───────────── REPORT LOADING (scales to many branches / years of data) ───────────── */
