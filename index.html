@@ -832,7 +832,7 @@ window.completeOnboarding = function () {
     try { localStorage.setItem('z1_manager_onboarded', 'true'); } catch (e) {}
     navTo('screen-login');
 };
-const ADMIN_UID = 'HXaiZ8xPcIgoKEX2RE9Gp9rjsYj2';     // the admin's account — this Google account can never sign in here
+const ADMIN_UID = 'VBQyeVEoGAh5Q1by2ZL8y8w7TDr2';     // the admin's account — this Google account can never sign in here
 window.executeGoogleLogin = async function () {
     if (busy) return;
     if (!navigator.onLine) return showAlert('No Internet', 'Login needs an internet connection. Please connect and try again.');
