@@ -433,7 +433,7 @@
                     </div>
                     <div class="flex items-start gap-1.5 mb-5 relative z-10"><span class="hero-rupee">₹</span><span id="dash-amount" class="hero-amt">0</span></div>
                     <div class="flex gap-3 relative z-10">
-                        <div class="hero-mini"><span class="flex items-center gap-1.5 text-[11.5px] font-medium mb-1" style="color:var(--h-sub)"><i class="ph-bold ph-users" style="color:var(--h-gold)"></i><span>Customers</span></span><span class="text-[18px] font-bold" style="color:var(--h-amt)" id="dash-cust">0</span></div>
+                        <div class="hero-mini"><span class="flex items-center gap-1.5 text-[11.5px] font-medium mb-1" style="color:var(--h-sub)"><i class="ph-bold ph-users" style="color:var(--h-gold)"></i><span>Customers</span></span><span class="text-[18px] font-bold text-app-text" id="dash-cust">0</span></div>
                         <div class="hero-mini"><span class="flex items-center gap-1.5 text-[11.5px] font-medium mb-1" style="color:var(--h-sub)"><i class="ph-bold ph-hand-coins" style="color:var(--h-neg)"></i><span>Withdrawn</span></span><span class="text-[18px] font-bold" style="color:var(--h-neg)" id="dash-withdrawn">₹0</span></div>
                     </div>
                 </div>
@@ -898,11 +898,13 @@ function showWaiting(kind) {
 
 /* ───────────── AUTH → MANAGER DOC → ROUTING ───────────── */
 function stopData() {
+    clearTimeout(cacheGuard.br);
     if (S.unsubBranches) { S.unsubBranches(); S.unsubBranches = null; }
     S.unsubReports.forEach(u => u()); S.unsubReports.clear();
     S.branches = []; S.reports.clear(); S.loaded.clear(); S.dataKey = ''; S.liveStart = null; S.ver++; S.repCount = null;
 }
 function stopAll() {
+    Object.keys(cacheGuard).forEach(k => clearTimeout(cacheGuard[k]));
     if (S.unsubMgr) { S.unsubMgr(); S.unsubMgr = null; }
     stopData();
 }
@@ -924,8 +926,18 @@ onAuthStateChanged(auth, (user) => {
     });
 });
 
-async function handleManagerSnap(snap) {
+// An EMPTY result that came only from the phone's cache is not the truth while online: wait for the server's answer
+// (fallback after 6s so the app never hangs).
+const cacheGuard = {};
+function waitForServer(key, snap, fn) {
+    if (!(snap.empty && snap.metadata.fromCache && navigator.onLine)) { clearTimeout(cacheGuard[key]); return false; }
+    clearTimeout(cacheGuard[key]);
+    cacheGuard[key] = setTimeout(() => fn(snap, true), 6000);
+    return true;
+}
+async function handleManagerSnap(snap, forced) {
     if (!S.user) return;
+    if (!forced && waitForServer('mgr', snap, handleManagerSnap)) return;
     if (snap.empty) {
         if (snap.metadata.fromCache && !navigator.onLine) return;       // offline + nothing cached yet: do not mistake it for a new user
         stopData(); S.mgr = null;
@@ -961,14 +973,16 @@ async function handleManagerSnap(snap) {
 function startBranchListener() {
     const field = S.role === 'am' ? 'amId' : 'smId';
     const q = query(collection(db, 'branches'), where(field, '==', S.mgr.id), where('status', '==', 'active'));
-    S.unsubBranches = onSnapshot(q, (snap) => {
+    const onBr = (snap, forced) => {
+        if (!forced && waitForServer('br', snap, onBr)) return;
         S.branches = snap.docs.map(x => ({ ...x.data(), id: x.data().id || x.id }));
         if (S.branches.length === 0) { S.reports.clear(); S.ver++; S.unsubReports.forEach(u => u()); S.unsubReports.clear(); return showWaiting('nobranch'); }
         syncReportListeners();
         ensureApp();
         render();
         fetchManagerNames();
-    }, (err) => { console.error(err); hideLoader(); showAlert('Connection Error', friendlyError(err)); });
+    };
+    S.unsubBranches = onSnapshot(q, (snap) => onBr(snap), (err) => { console.error(err); hideLoader(); showAlert('Connection Error', friendlyError(err)); });
 }
 
 /* ───────────── REPORT LOADING (scales to many branches / years of data) ───────────── */
