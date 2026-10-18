@@ -636,6 +636,9 @@
         <div class="flex items-center gap-3 mb-5"><div class="w-11 h-11 bg-app-errorBg rounded-[13px] flex items-center justify-center"><i class="ph-fill ph-file-pdf text-[22px] text-app-error"></i></div>
             <div><h3 class="text-[18px] font-bold text-app-text tracking-tight">Export PDF Report</h3><p class="text-[12px] text-app-textMuted" id="export-target-hint">Select the time period for your report data.</p></div></div>
         <div class="space-y-3 mb-6">
+            <div id="export-branch-row" class="input-group relative !bg-app-bg"><label class="input-label">Branch</label>
+                <select id="export-branch-select" onchange="onExportBranchChange(this.value)" class="native-input relative z-10 bg-transparent text-app-text text-[14px]"></select>
+                <i class="ph-bold ph-caret-down text-app-textSubtle absolute right-4 top-[55%] -translate-y-1/2 z-0 text-[14px]"></i></div>
             <div class="input-group relative !bg-app-bg"><label class="input-label">Date Range</label>
                 <select id="export-date-range" onchange="toggleCustomDates(this.value)" class="native-input relative z-10 bg-transparent text-app-text text-[14px]">
                     <option value="Today" class="text-black">Today</option><option value="Yesterday" class="text-black">Yesterday</option><option value="This Week" class="text-black">This Week</option><option value="This Month" class="text-black">This Month</option><option value="Custom" class="text-black">Custom...</option></select>
@@ -1599,8 +1602,20 @@ window.toggleCustomDates = function (val) {
     $('export-custom-dates').classList.toggle('hidden', val !== 'Custom');
     $('export-custom-dates').classList.toggle('flex', val === 'Custom');
 };
+window.onExportBranchChange = function (val) {
+    S.exportBranchId = val || null;
+    const b = val && S.branches.find(x => x.id === val);
+    $('export-target-hint').innerText = b ? `Exporting: ${b.brand} - ${b.name}` : 'Exporting: all assigned branches.';
+};
 window.openExport = function (branchId) {
-    S.exportBranchId = branchId;
+    S.exportBranchId = branchId || null;
+    const sel = $('export-branch-select');
+    const opts = ['<option value="">All Assigned Branches</option>'].concat(
+        S.branches.slice().sort((a, b) => (a.brand + a.name).localeCompare(b.brand + b.name))
+            .map(b => `<option value="${esc(b.id)}" class="text-black">${esc(b.brand)} - ${esc(b.name)}</option>`)
+    );
+    sel.innerHTML = opts.join('');
+    sel.value = branchId || '';
     const b = branchId && S.branches.find(x => x.id === branchId);
     $('export-target-hint').innerText = b ? `Exporting: ${b.brand} - ${b.name}` : 'Exporting: all assigned branches.';
     openModal('modal-export-options');
